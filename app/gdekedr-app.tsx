@@ -334,6 +334,7 @@ export function GdeKedrApp() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [coordinate, setCoordinate] = useState(SURGUT);
@@ -417,9 +418,6 @@ export function GdeKedrApp() {
   };
 
   const removeSighting = async (sighting: Sighting) => {
-    const confirmed = window.confirm("Удалить эту отметку? Вернуть её уже не получится.");
-    if (!confirmed) return;
-
     setDeletingId(sighting.id);
     try {
       const response = await fetch(`${API_ORIGIN}/api/sightings`, {
@@ -444,6 +442,7 @@ export function GdeKedrApp() {
       );
     } finally {
       setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -547,18 +546,38 @@ export function GdeKedrApp() {
                     </span>
                   </span>
                 </button>
-                {sighting.canDelete && (
-                  <button
-                    type="button"
-                    className="delete-sighting"
-                    aria-label={`Удалить вашу отметку: ${sighting.comment || item.label}`}
-                    title="Удалить мою отметку"
-                    disabled={deletingId === sighting.id}
-                    onClick={() => void removeSighting(sighting)}
-                  >
-                    {deletingId === sighting.id ? "…" : "×"}
-                  </button>
-                )}
+                {sighting.canDelete &&
+                  (confirmDeleteId === sighting.id ? (
+                    <span className="delete-confirm">
+                      <button
+                        type="button"
+                        className="delete-confirm-button"
+                        disabled={deletingId === sighting.id}
+                        onClick={() => void removeSighting(sighting)}
+                      >
+                        {deletingId === sighting.id ? "Удаляем…" : "Удалить"}
+                      </button>
+                      <button
+                        type="button"
+                        className="delete-cancel-button"
+                        aria-label="Отменить удаление"
+                        disabled={deletingId === sighting.id}
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Нет
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="delete-sighting"
+                      aria-label={`Удалить вашу отметку: ${sighting.comment || item.label}`}
+                      title="Удалить мою отметку"
+                      onClick={() => setConfirmDeleteId(sighting.id)}
+                    >
+                      ×
+                    </button>
+                  ))}
               </div>
             );
           })}

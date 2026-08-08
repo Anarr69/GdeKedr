@@ -352,6 +352,40 @@ button {
   opacity: 0.55;
 }
 
+.delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delete-confirm-button,
+.delete-cancel-button {
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.delete-confirm-button {
+  border: 1px solid #b33b30;
+  background: #b33b30;
+  color: white;
+}
+
+.delete-cancel-button {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+}
+
+.delete-confirm-button:disabled,
+.delete-cancel-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .activity-icon {
   display: grid;
   width: 43px;
