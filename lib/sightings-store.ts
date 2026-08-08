@@ -30,6 +30,10 @@ export type Sighting = {
 const DATA_PATH = "gdekedr/sightings.json";
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
 
+function normalizeEtag(etag: string) {
+  return etag.replace(/^W\//, "").replace(/^"|"$/g, "");
+}
+
 function initialSightings(): Sighting[] {
   const now = Date.now();
   return [
@@ -101,13 +105,18 @@ async function readState() {
       token: blobToken,
     });
     if (!result || result.statusCode === 304 || !result.stream) continue;
-    if (result.blob.etag !== metadata.etag) continue;
+    if (normalizeEtag(result.blob.etag) !== normalizeEtag(metadata.etag)) {
+      console.warn("[sightings] Blob read returned a stale ETag; retrying", {
+        attempt: attempt + 1,
+      });
+      continue;
+    }
 
     const payload = (await new Response(result.stream).json()) as {
       sightings?: Sighting[];
     };
     const confirmedMetadata = await head(DATA_PATH, { token: blobToken });
-    if (confirmedMetadata.etag !== metadata.etag) continue;
+    if (normalizeEtag(confirmedMetadata.etag) !== normalizeEtag(metadata.etag)) continue;
 
     return {
       sightings: Array.isArray(payload.sightings) ? payload.sightings : initialSightings(),

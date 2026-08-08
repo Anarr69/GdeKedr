@@ -35,8 +35,11 @@ export async function GET(request: Request) {
           : sightings,
     });
   } catch (error) {
+    console.error("[api/sightings] GET failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return json(
-      { error: error instanceof Error ? error.message : "Не удалось загрузить отметки" },
+      { error: "Не удалось загрузить отметки. Обновите страницу." },
       500,
     );
   }
