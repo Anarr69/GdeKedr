@@ -35,6 +35,7 @@ type Sighting = {
   comment: string;
   happenedAt: string;
   createdAt: string;
+  canDelete: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -332,6 +333,7 @@ export function GdeKedrApp() {
   const [loading, setLoading] = useState(true);
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [coordinate, setCoordinate] = useState(SURGUT);
@@ -346,7 +348,11 @@ export function GdeKedrApp() {
       if (!response.ok) throw new Error("Не удалось загрузить отметки");
       const data = (await response.json()) as { sightings: Sighting[] };
       setSightings(data.sightings);
-      setSelectedId((current) => current ?? data.sightings[0]?.id ?? null);
+      setSelectedId((current) =>
+        current && data.sightings.some((item) => item.id === current)
+          ? current
+          : (data.sightings[0]?.id ?? null),
+      );
     } catch {
       setError("Карта открылась, но история пока недоступна. Попробуйте обновить страницу.");
     } finally {
@@ -407,6 +413,37 @@ export function GdeKedrApp() {
       setError(submitError instanceof Error ? submitError.message : "Не удалось сохранить отметку");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const removeSighting = async (sighting: Sighting) => {
+    const confirmed = window.confirm("Удалить эту отметку? Вернуть её уже не получится.");
+    if (!confirmed) return;
+
+    setDeletingId(sighting.id);
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/sightings`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sighting.id }),
+      });
+      const result = (await response.json()) as { deleted?: boolean; error?: string };
+      if (!response.ok || !result.deleted) {
+        throw new Error(result.error || "Не удалось удалить отметку");
+      }
+
+      const next = sightings.filter((item) => item.id !== sighting.id);
+      setSightings(next);
+      setSelectedId((current) =>
+        current === sighting.id ? (next[0]?.id ?? null) : current,
+      );
+      setToast("Ваша отметка удалена");
+    } catch (deleteError) {
+      setToast(
+        deleteError instanceof Error ? deleteError.message : "Не удалось удалить отметку",
+      );
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -488,25 +525,41 @@ export function GdeKedrApp() {
           {visibleSightings.map((sighting) => {
             const item = activityMap[sighting.activity] ?? activityMap.other;
             return (
-              <button
-                type="button"
+              <div
                 className={`feed-item${selectedId === sighting.id ? " selected" : ""}`}
                 key={sighting.id}
-                onClick={() => setSelectedId(sighting.id)}
               >
-                <span className="activity-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="feed-main">
-                  <span className="feed-top">
-                    <span className="feed-title">{item.label}</span>
-                    <span className="feed-time">{formatWhen(sighting.happenedAt, true)}</span>
+                <button
+                  type="button"
+                  className="feed-select"
+                  onClick={() => setSelectedId(sighting.id)}
+                >
+                  <span className="activity-icon" aria-hidden="true">
+                    {item.icon}
                   </span>
-                  <span className="feed-comment">
-                    {sighting.comment || "Без комментария — загадочный Кедр."}
+                  <span className="feed-main">
+                    <span className="feed-top">
+                      <span className="feed-title">{item.label}</span>
+                      <span className="feed-time">{formatWhen(sighting.happenedAt, true)}</span>
+                    </span>
+                    <span className="feed-comment">
+                      {sighting.comment || "Без комментария — загадочный Кедр."}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+                {sighting.canDelete && (
+                  <button
+                    type="button"
+                    className="delete-sighting"
+                    aria-label={`Удалить вашу отметку: ${sighting.comment || item.label}`}
+                    title="Удалить мою отметку"
+                    disabled={deletingId === sighting.id}
+                    onClick={() => void removeSighting(sighting)}
+                  >
+                    {deletingId === sighting.id ? "…" : "×"}
+                  </button>
+                )}
+              </div>
             );
           })}
           {!loading && visibleSightings.length === 0 && (

@@ -296,21 +296,60 @@ button {
 
 .feed-item {
   display: grid;
-  grid-template-columns: 43px 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
   width: 100%;
-  padding: 12px 9px;
+  padding: 4px;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
-  text-align: left;
-  cursor: pointer;
 }
 
 .feed-item:hover,
 .feed-item.selected {
   border-radius: 17px;
   background: #eff7f2;
+}
+
+.feed-select {
+  display: grid;
+  grid-template-columns: 43px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 5px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.delete-sighting {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(179, 59, 48, 0.18);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #b33b30;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.delete-sighting:hover {
+  border-color: rgba(179, 59, 48, 0.35);
+  background: #fff0ed;
+  transform: translateY(-1px);
+}
+
+.delete-sighting:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .activity-icon {
@@ -727,9 +766,13 @@ button {
   }
 
   .feed-item {
-    grid-template-columns: 38px 1fr;
+    padding: 4px;
+  }
+
+  .feed-select {
+    grid-template-columns: 38px minmax(0, 1fr);
     gap: 10px;
-    padding: 9px 8px;
+    padding: 5px 4px;
   }
 
   .activity-icon {

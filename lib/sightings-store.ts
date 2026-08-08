@@ -25,7 +25,10 @@ export type Sighting = {
   comment: string;
   happenedAt: string;
   createdAt: string;
+  ownerHash?: string;
 };
+
+export type DeleteSightingResult = "deleted" | "not_found" | "forbidden";
 
 const DATA_PATH = "gdekedr/sightings.json";
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -35,54 +38,7 @@ function normalizeEtag(etag: string) {
 }
 
 function initialSightings(): Sighting[] {
-  const now = Date.now();
-  return [
-    {
-      id: 1005,
-      lat: 61.2559,
-      lon: 73.3896,
-      activity: "tennis",
-      comment: "Разминался у сетки и уверял, что это всего на час.",
-      happenedAt: new Date(now - 42 * 60_000).toISOString(),
-      createdAt: new Date(now - 40 * 60_000).toISOString(),
-    },
-    {
-      id: 1004,
-      lat: 61.2495,
-      lon: 73.4054,
-      activity: "bar",
-      comment: "Замечен у окна. На вопрос «ты где?» ответил: «почти дома».",
-      happenedAt: new Date(now - 3.2 * 60 * 60_000).toISOString(),
-      createdAt: new Date(now - 3.1 * 60 * 60_000).toISOString(),
-    },
-    {
-      id: 1003,
-      lat: 61.2621,
-      lon: 73.3728,
-      activity: "volleyball",
-      comment: "Пришёл на одну игру, остался на четыре.",
-      happenedAt: new Date(now - 23 * 60 * 60_000).toISOString(),
-      createdAt: new Date(now - 22.9 * 60 * 60_000).toISOString(),
-    },
-    {
-      id: 1002,
-      lat: 61.2417,
-      lon: 73.4192,
-      activity: "cs2",
-      comment: "Вышел на одну катку. Дальше след потерян.",
-      happenedAt: new Date(now - 29 * 60 * 60_000).toISOString(),
-      createdAt: new Date(now - 28.9 * 60 * 60_000).toISOString(),
-    },
-    {
-      id: 1001,
-      lat: 61.2701,
-      lon: 73.401,
-      activity: "beer",
-      comment: "Сидел спокойно, никуда не пропадал — редкий случай.",
-      happenedAt: new Date(now - 52 * 60 * 60_000).toISOString(),
-      createdAt: new Date(now - 51.9 * 60 * 60_000).toISOString(),
-    },
-  ];
+  return [];
 }
 
 async function readState() {
@@ -181,4 +137,33 @@ export async function addSighting(
   }
 
   throw new Error("Не удалось сохранить отметку после нескольких попыток");
+}
+
+export async function deleteSighting(
+  id: number,
+  ownerHash: string,
+): Promise<DeleteSightingResult> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const state = await readState();
+    const sighting = state.sightings.find((item) => item.id === id);
+    if (!sighting) return "not_found";
+    if (!sighting.ownerHash || sighting.ownerHash !== ownerHash) return "forbidden";
+
+    const next = state.sightings.filter((item) => item.id !== id);
+    try {
+      await writeState(next, state.etag);
+      return "deleted";
+    } catch (error) {
+      if (error instanceof BlobPreconditionFailedError && attempt < 3) {
+        console.warn("[sightings] Blob delete conflict; retrying", {
+          attempt: attempt + 1,
+          etag: state.etag,
+        });
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error("Не удалось удалить отметку после нескольких попыток");
 }
