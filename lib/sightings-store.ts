@@ -1,6 +1,8 @@
 import {
+  BlobNotFoundError,
   BlobPreconditionFailedError,
   get,
+  head,
   put,
 } from "@vercel/blob";
 
@@ -80,22 +82,40 @@ function initialSightings(): Sighting[] {
 }
 
 async function readState() {
-  const result = await get(DATA_PATH, {
-    access: "private",
-    useCache: false,
-    token: blobToken,
-  });
-  if (!result || result.statusCode === 304 || !result.stream) {
-    return { sightings: initialSightings(), etag: null as string | null };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    let metadata;
+    try {
+      metadata = await head(DATA_PATH, { token: blobToken });
+    } catch (error) {
+      if (error instanceof BlobNotFoundError) {
+        return { sightings: initialSightings(), etag: null as string | null };
+      }
+      throw error;
+    }
+
+    const versionedUrl = new URL(metadata.url);
+    versionedUrl.searchParams.set("version", metadata.etag);
+    const result = await get(versionedUrl.toString(), {
+      access: "private",
+      useCache: false,
+      token: blobToken,
+    });
+    if (!result || result.statusCode === 304 || !result.stream) continue;
+    if (result.blob.etag !== metadata.etag) continue;
+
+    const payload = (await new Response(result.stream).json()) as {
+      sightings?: Sighting[];
+    };
+    const confirmedMetadata = await head(DATA_PATH, { token: blobToken });
+    if (confirmedMetadata.etag !== metadata.etag) continue;
+
+    return {
+      sightings: Array.isArray(payload.sightings) ? payload.sightings : initialSightings(),
+      etag: metadata.etag,
+    };
   }
 
-  const payload = (await new Response(result.stream).json()) as {
-    sightings?: Sighting[];
-  };
-  return {
-    sightings: Array.isArray(payload.sightings) ? payload.sightings : initialSightings(),
-    etag: result.blob.etag,
-  };
+  throw new Error("Не удалось получить актуальную версию отметок");
 }
 
 async function writeState(sightings: Sighting[], etag: string | null) {
@@ -139,7 +159,13 @@ export async function addSighting(
       await writeState(next, state.etag);
       return sighting;
     } catch (error) {
-      if (error instanceof BlobPreconditionFailedError && attempt < 3) continue;
+      if (error instanceof BlobPreconditionFailedError && attempt < 3) {
+        console.warn("[sightings] Blob write conflict; retrying", {
+          attempt: attempt + 1,
+          etag: state.etag,
+        });
+        continue;
+      }
       if (attempt < 3 && state.etag === null) continue;
       throw error;
     }

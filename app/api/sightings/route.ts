@@ -79,8 +79,11 @@ export async function POST(request: Request) {
 
     return json({ sighting }, 201);
   } catch (error) {
+    console.error("[api/sightings] POST failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return json(
-      { error: error instanceof Error ? error.message : "Не удалось сохранить отметку" },
+      { error: "Не удалось сохранить отметку. Попробуйте ещё раз." },
       500,
     );
   }
